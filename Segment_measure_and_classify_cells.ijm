@@ -1,13 +1,15 @@
 /*
- * Macro to quantify the fluorescent signals in the nuclei/cells for all channels
+ * Macro to quantify the fluorescent signals in the nuclei/cells for all channels and manually classify the cells (pos/neg) based on log-thresholding
  * 
  * Brief workflow:
  * - Nuclei/cells are detected using the StarDist/Cellpose convolutional neural network model for fluorescent nuclei.
  * - Nuclear ROIs can be filtered on size and eroded to prevent edge effects.
  * - Background signal in the measurement channel is measured (several options).
- * - N.B. Intensity values shown in the Results table are already background-subtracted.
+ *   N.B. Intensity values shown in the Results table are already background-subtracted.
+ * - Classifcation can be performed on each channel separately. A histogram of the logarithm of the mean/median intensity or stddev is shown.
+ *   The user sets the threshold by clicking in the histogram image
  * 
- * Input: a folder containing 2D images with at least 2 channels. Multi-series microscopy format files are also supported.
+ * Input: a folder containing 2D images with at least 2 channels. Multi-series proprietary microscopy format files (e.g. .czi, .lif) are also supported.
  * 
  * Required Fiji update sites:
  * - StarDist
@@ -28,52 +30,7 @@
  * ----------------------------------
  * Changelog, from v0.9 onwards:
  * ----------------------------------
- * v1.0:
- * - Added downsampling possibility before StarDist (better for high resolution images)
- * - Nuclei numbers visible in output images 
- * 
- * v1.1:
- * - Added metrics: nucleus area & total intensity
- * - Added an option to exclude nuclei touching image edges
- * - Perform writing of nuclei numbers in output image with CLIJ2 (different method, faster)
- * - Added some visualization options
- *
- * v1.2, March 2021:
- * - Fully omit the RoiManager by:
- *   * Creating outlines (as overlay) using CLIJ
- *   * Writing cell numbers as overlay at the center of mass of the detected cells
- * - General improvements
- * 
- * v1.3, April 2021:
- * - Support for multi-series files (opened with Bio-Formats)
- * 
- * v1.4, July 2021:
- * - Fixed a critial bug: the GPU memory was not cleared after pushCurrentSlice(), causing incorrect results in all channels >1.
- * 
- * v1.5, March 2022:
- * - don't remember :-(
- * 
- * v2.0, June 2022:
- * - Added possibility to segment cells using cellpose
- * 
- * v2.1, November 2025:
- * - bugfixes concerning downscaling for StarDist
- * - Channels and slices are flipped if only one channel is detected
- * 
- * v3.0, December 2025:
- * - Added Cell classification (positive/negative)
- * 
- * v3.3, January 2026:
- * - Upgraded to new BIOP Cellpose wrapper
- * - Added Median intensity measurements
- * - Possibility to measure background as Mean or Median of a certain lower percentile pixels
- * 
- * v3.4,January 2026:
- * - Fixed bugs for classification with multiple images
- * - Added automatic downscaling for StarDist
- * - Added a top percentile measurement  
- * - Added differential treatmentper channel for classifying
- * - Added a Classification results table with % positive cells
+ * v1.0: First official release
  * 
  */
 
@@ -256,7 +213,6 @@ function processFile(path) {
 			seriesName = getTitle();
 			seriesName = replace(seriesName,"\\/","-");	//replace slashes by dashes in the seriesName
 			print(File.getParent(path) + File.separator + seriesName);
-	//		outputPath = output + File.separator + substring(seriesNa
 			process_current_series(seriesName);
 		}
 	}
@@ -340,7 +296,7 @@ function process_current_series(image) {
 		}
 		if(overlayChoice == "Cell numbers and outlines imprinted as pixels (RGB output)") run("Flatten", "stack");
 
-		//Optional: save with ROIs
+		//Optional: save with standard ROIs instead of colored overlays
 /*
 		Overlay.remove;
 		Stack.setDisplayMode("composite");
@@ -382,7 +338,6 @@ function process_current_series(image) {
 		}
 	}
 
-//	run("Close All");
 	endtime = getTime();
 	processtime = processtime+(endtime-starttime)/60000;
 }
@@ -417,7 +372,7 @@ function detect_nuclei(image, nucleiChannel) {
 		close(nuclei_downscaled);
 		nuclei_downscaled = getTitle();
 	}
-//	if(medianRadius > 0) run("Median...", "radius="+medianRadius); 
+	if(medianRadius > 0) run("Median...", "radius="+medianRadius); 
 	getDimensions(width, height, channels, slices, frames);
 
 	starDistTiles = pow(floor(maxOf(width, height)/maxTileSize)+1,2);	//Determine the nr. of tiles
